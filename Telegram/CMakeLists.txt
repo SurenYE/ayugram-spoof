@@ -255,6 +255,15 @@ set(ayugram_files
 
         info/profile/info_profile_music_button.cpp
         info/profile/info_profile_music_button.h
+
+        ayu/spoof/spoof_storage.cpp
+        ayu/spoof/spoof_storage.h
+        ayu/spoof/spoof_sender.cpp
+        ayu/spoof/spoof_sender.h
+        ayu/ui/spoof_panel/spoof_panel_box.cpp
+        ayu/ui/spoof_panel/spoof_panel_box.h
+        ayu/ui/spoof_panel/spoof_preview_box.cpp
+        ayu/ui/spoof_panel/spoof_preview_box.h
 )
 
 if (NOT DESKTOP_APP_DISABLE_SWIFT6)

@@ -124,3 +124,10 @@ ayuServiceTimeBadgeVerticalPadding: 2px;
 ayuServiceTimeBadgeGap: 8px;
 ayuServiceTimeBadgeTrailingInset: 3px;
 ayuServiceTimeBadgeLastLineWidthAdd: 9px;
+
+spoofPanelItemSize: 128px;
+spoofPanelItemGap: 8px;
+spoofPanelGridPadding: 16px;
+spoofPanelRounding: 12px;
+spoofPanelMaxHeight: 480px;
+spoofPanelDurationFont: font(11px semibold);

@@ -16,6 +16,7 @@
 #include "ayu/features/filters/filters_controller.h"
 #include "ayu/features/forward/ayu_forward.h"
 #include "ayu/features/forward/ayu_forward_rich.h"
+#include "ayu/spoof/spoof_storage.h"
 #include "ayu/ui/context_menu/menu_item_subtext.h"
 #include "ayu/ui/message_history/history_section.h"
 #include "ayu/ui/settings/filters/edit_filter.h"
@@ -24,10 +25,16 @@
 #include "ayu/utils/telegram_helpers.h"
 #include "base/call_delayed.h"
 #include "base/random.h"
+#include "base/timer.h"
 #include "base/unixtime.h"
+#include "base/weak_ptr.h"
 #include "core/mime_type.h"
+#include "crl/crl_on_main.h"
 #include "data/data_channel.h"
 #include "data/data_chat.h"
+#include "data/data_document.h"
+#include "data/data_document_media.h"
+#include "data/data_file_click_handler.h"
 #include "data/data_forum_topic.h"
 #include "data/data_search_controller.h"
 #include "data/data_session.h"
@@ -38,14 +45,19 @@
 #include "history/view/history_view_element.h"
 #include "main/main_session.h"
 #include "main/session/send_as_peers.h"
+#include "storage/cache/storage_cache_database.h"
 #include "styles/style_ayu_icons.h"
 #include "styles/style_layers.h"
 #include "styles/style_menu_icons.h"
 #include "ui/boxes/confirm_box.h"
+#include "ui/image/image.h"
 #include "ui/widgets/popup_menu.h"
 #include "ui/widgets/menu/menu_add_action_callback_factory.h"
 #include "window/window_peer_menu.h"
 #include "window/window_session_controller.h"
+
+#include <optional>
+#include <QtCore/QFile>
 
 namespace AyuUi {
 
@@ -1000,6 +1012,114 @@ void AddCreateFilterAction(not_null<Ui::PopupMenu*> menu,
 			controller->show(Settings::RegexEditBox(&filter, {}, getDialogIdFromPeer(item->history()->peer), true));
 		},
 		&st::menuIconAddToFolder);
+}
+
+void AddSpoofPanelAction(not_null<Ui::PopupMenu*> menu, HistoryItem *item) {
+	const auto media = item ? item->media() : nullptr;
+	const auto document = media ? media->document() : nullptr;
+	if (!document || (!document->isVoiceMessage() && !document->isVideoMessage())) {
+		return;
+	}
+
+	menu->addAction(
+		tr::ayu_SpoofPanelAdd(tr::now),
+		[=]
+		{
+			const auto history = item->history();
+			const auto round = document->isVideoMessage();
+			const auto durationMs = document->duration();
+			const auto showToast = [=](const QString &text) {
+				if (const auto controller = history->session().tryResolveWindow()) {
+					controller->showToast(text);
+				}
+			};
+			const auto addData = [=](QByteArray data) {
+				auto thumb = QImage();
+				if (round) {
+					const auto view = document->createMediaView();
+					if (const auto image = view->thumbnail()) {
+						thumb = image->original();
+					}
+				}
+				showToast(Ayu::Spoof::Storage::Instance().addFromData(
+					data,
+					round,
+					durationMs,
+					thumb)
+					? tr::ayu_SpoofPanelAdded(tr::now)
+					: tr::ayu_SpoofPanelMissing(tr::now));
+			};
+			// WHY: voice and round media are usually kept in the media cache
+			// (binlog) or in memory, not as separate files, so filepath()
+			// stays empty even when the file is fully downloaded.
+			const auto view = document->createMediaView();
+			const auto grab = [=]() -> QByteArray {
+				const auto path = document->filepath(true);
+				if (!path.isEmpty()) {
+					auto file = QFile(path);
+					if (file.open(QIODevice::ReadOnly)) {
+						return file.readAll();
+					}
+				}
+				return view->bytes();
+			};
+			const auto pollDownload = [=] {
+				DocumentSaveClickHandler::SaveAndTrack(
+					item->fullId(),
+					document,
+					DocumentSaveClickHandler::Mode::ToCacheOrFile);
+				struct PollState {
+					base::weak_ptr<Main::Session> session;
+					Fn<QByteArray()> grab;
+					Fn<void(QByteArray)> done;
+					Fn<void()> failed;
+					std::optional<base::Timer> timer;
+					int tries = 0;
+				};
+				const auto state = std::make_shared<PollState>();
+				state->session = base::make_weak(&history->session());
+				state->grab = grab;
+				state->done = addData;
+				state->failed = [=] {
+					showToast(tr::ayu_SpoofPanelMissing(tr::now));
+				};
+				state->timer.emplace([state] {
+					if (!state->session) {
+						state->timer->cancel();
+						return;
+					}
+					const auto data = state->grab();
+					if (!data.isEmpty()) {
+						state->timer->cancel();
+						state->done(data);
+					} else if (++state->tries > 240) {
+						state->timer->cancel();
+						state->failed();
+					}
+				});
+				state->timer->callEach(500);
+			};
+			if (const auto data = grab(); !data.isEmpty()) {
+				addData(data);
+				return;
+			}
+			const auto session = &history->session();
+			document->owner().cache().get(
+				document->cacheKey(),
+				[=](QByteArray &&value) {
+					// WHY: the cache database calls back from a worker
+					// thread, while adding touches GUI and data objects.
+					const auto data = QByteArray(std::move(value));
+					crl::on_main(session, [=] {
+						if (!data.isEmpty()) {
+							addData(QByteArray(data));
+						} else {
+							pollDownload();
+						}
+					});
+				});
+		},
+		&st::menuIconSaveImage);
 }
 
 } // namespace AyuUi

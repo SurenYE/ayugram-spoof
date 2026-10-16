@@ -87,6 +87,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 #include "styles/style_ayu_icons.h"
 #include "lang_auto.h"
 #include "ayu/ui/settings/settings_main.h"
+#include "ayu/ui/spoof_panel/spoof_panel_box.h"
 #include "styles/style_info.h"
 
 
@@ -766,6 +767,13 @@ void MainMenu::setupMenu() {
 			{ &st::menuIconSavedMessages }
 		)->setClickedCallback([=] {
 			controller->showPeerHistory(controller->session().user());
+		});
+
+		addAction(
+			tr::ayu_SpoofPanelMenu(),
+			{ &st::menuIconVideoChat }
+		)->setClickedCallback([=] {
+			controller->show(Box<AyuUi::SpoofPanelBox>(controller));
 		});
 
 		if (settings.showLReadToggleInDrawer()) {
