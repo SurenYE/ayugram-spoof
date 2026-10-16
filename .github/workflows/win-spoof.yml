@@ -1,0 +1,113 @@
+# AyuGram Spoof: Windows x64 build + Inno Setup installer.
+# Based on the upstream canary.yml windows job, stripped of signing/bot/R2.
+name: Windows Spoof Setup
+
+on:
+  push:
+    branches: [spoof-panel]
+  workflow_dispatch:
+
+jobs:
+  windows:
+    name: Windows x64 setup.exe
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: cmd
+    steps:
+      - name: Prepare directories.
+        run: |
+          mkdir %userprofile%\TBuild\Libraries
+          mklink /d %GITHUB_WORKSPACE%\TBuild %userprofile%\TBuild
+          echo TBUILD=%GITHUB_WORKSPACE%\TBuild>>%GITHUB_ENV%
+          echo LibrariesPath=%GITHUB_WORKSPACE%\TBuild\Libraries\win64>>%GITHUB_ENV%
+
+      - name: Get repository name.
+        shell: bash
+        run: echo "REPO_NAME=${GITHUB_REPOSITORY##*/}" >> $GITHUB_ENV
+
+      - uses: actions/checkout@v4
+        with:
+          path: ${{ env.TBUILD }}\${{ env.REPO_NAME }}
+
+      - name: Submodules.
+        shell: bash
+        working-directory: ${{ env.TBUILD }}/${{ env.REPO_NAME }}
+        run: git submodule update --init --depth=1
+
+      - name: Native Tools Command Prompt.
+        uses: microsoft/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: NuGet sources.
+        run: |
+          nuget sources Disable -Name "Microsoft Visual Studio Offline Packages"
+          nuget sources Add -Source https://api.nuget.org/v3/index.json & exit 0
+
+      - name: ThirdParty cache.
+        id: cache-third-party
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.TBUILD }}\ThirdParty
+          key: ${{ runner.OS }}-third-party-${{ hashFiles('Telegram/build/prepare/prepare.py') }}
+          restore-keys: ${{ runner.OS }}-third-party-
+
+      - name: Libraries cache.
+        id: cache-libs
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ env.LibrariesPath }}
+          key: ${{ runner.OS }}-libs-${{ hashFiles('Telegram/build/prepare/prepare.py') }}
+          restore-keys: ${{ runner.OS }}-libs-
+
+      - name: Libraries.
+        run: |
+          %TBUILD%\%REPO_NAME%\Telegram\build\prepare\win.bat silent
+
+      - name: Save ThirdParty cache.
+        if: steps.cache-third-party.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.TBUILD }}\ThirdParty
+          key: ${{ steps.cache-third-party.outputs.cache-primary-key }}
+
+      - name: Save Libraries cache.
+        if: steps.cache-libs.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ env.LibrariesPath }}
+          key: ${{ steps.cache-libs.outputs.cache-primary-key }}
+
+      - name: Free up some disk space.
+        shell: bash
+        run: find $LibrariesPath '(' '(' ! '(' -name '*.lib' -o -name '*.a' -o -name '*.exe' -o -name '*.h' -o -name '*.hpp' -o -name '*.inc' -o -name '*.cmake' -o -name '*.pc' -o -path '*/include/*' -o -path '*/objects-*' -o -path '*/cache_keys/*' -o -path '*/patches/*' -o -path '*/nv-codec-headers/*' ')' -type f ')' -o -empty ')' -delete
+
+      - name: Telegram Desktop build.
+        run: |
+          cd %TBUILD%\%REPO_NAME%\Telegram
+          call configure.bat ^
+          x64 ^
+          -D TDESKTOP_API_ID=2040 ^
+          -D TDESKTOP_API_HASH=b18441a1ff607e10a989891a5462e627 ^
+          -D CMAKE_CONFIGURATION_TYPES=Release ^
+          -D DESKTOP_APP_DISABLE_AUTOUPDATE=ON ^
+          -D DESKTOP_APP_DISABLE_CRASH_REPORTS=ON
+          cmake --build ..\out --config Release --parallel
+
+      - name: Install Inno Setup.
+        shell: pwsh
+        run: choco install innosetup -y --no-progress
+
+      - name: Build setup.exe.
+        run: |
+          cd %TBUILD%\%REPO_NAME%\Telegram\build
+          "C:\Program Files (x86)\Inno Setup 6\iscc.exe" /DMyAppVersion=7.2.9 /DMyAppVersionZero=7.2.9 /DMyAppVersionFull=7.2.9 "/dReleasePath=%TBUILD%\%REPO_NAME%\out\Release" /DMyBuildTarget=win64 /DMyOutputBaseFilename=AyuGram-Spoof-setup-x64 setup.iss
+
+      - name: Upload artifact.
+        uses: actions/upload-artifact@v4
+        with:
+          name: ayugram-spoof-win64
+          path: |
+            ${{ env.TBUILD }}/${{ env.REPO_NAME }}/out/Release/AyuGram-Spoof-setup-x64.exe
+            ${{ env.TBUILD }}/${{ env.REPO_NAME }}/out/Release/AyuGram.exe
