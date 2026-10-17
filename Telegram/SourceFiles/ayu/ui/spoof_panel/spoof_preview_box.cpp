@@ -21,6 +21,7 @@
 #include "styles/style_menu_icons.h"
 #include "styles/style_widgets.h"
 #include "ui/chat/chat_style.h"
+#include "ui/style/style_core_scale.h"
 #include "ui/painter.h"
 #include "window/window_session_controller.h"
 
@@ -161,8 +162,12 @@ void SpoofPreviewBox::setupStreaming() {
 		}, [&](UpdateVideo &data) {
 			_position = data.position;
 			if (_instance) {
+				// WHY: frames without alpha require non-empty outer
+				// (PrepareByRequest asserts on it), like FrameRequestFor
+				// in editor/video/video_editor.cpp does.
 				auto request = Media::Streaming::FrameRequest();
-				request.resize = _view->size();
+				request.resize = _view->size() * style::DevicePixelRatio();
+				request.outer = request.resize;
 				_frame = _instance->frame(request);
 			}
 			_view->update();
