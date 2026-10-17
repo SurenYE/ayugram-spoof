@@ -111,3 +111,5 @@ jobs:
           path: |
             ${{ env.TBUILD }}/${{ env.REPO_NAME }}/out/Release/AyuGram-Spoof-setup-x64.exe
             ${{ env.TBUILD }}/${{ env.REPO_NAME }}/out/Release/AyuGram.exe
+
+# touch rescan
