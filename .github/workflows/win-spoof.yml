@@ -41,6 +41,9 @@ jobs:
           DOCPATH=$TBUILD/$REPO_NAME/docs/building-win.md
           SDK="$(grep "SDK version" $DOCPATH | sed -r 's/.*\*\*(.*)\*\* SDK version.*/\1/')"
           echo "SDK=$SDK" >> $GITHUB_ENV
+          sha256sum "$TBUILD/$REPO_NAME/Telegram/build/prepare/prepare.py" | awk '{ print $1 }' > CACHE_KEY.txt
+          echo "$SDK" >> CACHE_KEY.txt
+          echo "CACHE_KEY=$(sha256sum CACHE_KEY.txt | awk '{ print $1 }')" >> $GITHUB_ENV
 
       # VS2026 image ships ATL only for its default v145 toolset; we build
       # with the v143 14.44 compatibility toolset (Windows 7 support), so
@@ -85,7 +88,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.TBUILD }}\ThirdParty
-          key: ${{ runner.OS }}-third-party-${{ hashFiles('Telegram/build/prepare/prepare.py') }}
+          key: ${{ runner.OS }}-third-party-${{ env.CACHE_KEY }}
           restore-keys: ${{ runner.OS }}-third-party-
 
       - name: Libraries cache.
@@ -93,7 +96,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ env.LibrariesPath }}
-          key: ${{ runner.OS }}-libs-${{ hashFiles('Telegram/build/prepare/prepare.py') }}
+          key: ${{ runner.OS }}-libs-${{ env.CACHE_KEY }}
           restore-keys: ${{ runner.OS }}-libs-
 
       - name: Libraries.
