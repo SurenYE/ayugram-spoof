@@ -185,6 +185,22 @@ jobs:
           path: ${{ env.LibrariesPath }}
           key: ${{ runner.OS }}-libs-${{ env.CACHE_KEY }}
 
+      # WHY: MSVC compiling tdesktop's template-heavy TUs needs far more
+      # commit charge than the runner's 16 GB RAM + default pagefile;
+      # C1060 (out of heap space) otherwise kills the build mid-project.
+      - name: Grow pagefile.
+        shell: pwsh
+        run: |
+          $cs = Get-CimInstance -ClassName Win32_ComputerSystem
+          if ($cs.AutomaticManagedPagefile) {
+            $cs | Set-CimInstance -Property @{AutomaticManagedPagefile = $false}
+          }
+          Get-CimInstance -ClassName Win32_PageFileSetting | Remove-CimInstance
+          New-CimInstance -ClassName Win32_PageFileSetting -Property @{
+            Name = 'D:\pagefile.sys'; InitialSize = 65536; MaximumSize = 65536 } | Out-Null
+          Start-Sleep -Seconds 5
+          Get-CimInstance -ClassName Win32_PageFileUsage | Format-List Name, AllocatedBaseSize
+
       - name: Telegram Desktop build.
         run: |
           cd %TBUILD%\%REPO_NAME%\Telegram
