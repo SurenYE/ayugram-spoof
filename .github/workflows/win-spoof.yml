@@ -195,7 +195,7 @@ jobs:
           -D CMAKE_CONFIGURATION_TYPES=Release ^
           -D DESKTOP_APP_DISABLE_AUTOUPDATE=ON ^
           -D DESKTOP_APP_DISABLE_CRASH_REPORTS=ON
-          cmake --build ..\out --config Release --parallel
+          cmake --build ..\out --config Release
 
       - name: Install Inno Setup.
         shell: pwsh
