@@ -1,5 +1,7 @@
 # AyuGram Spoof: Windows x64 build + Inno Setup installer.
-# Based on the upstream canary.yml windows job, stripped of signing/bot/R2.
+# Two jobs so the dependency build gets its own 6h budget and is cached
+# for the client job. Based on upstream canary.yml windows job, stripped
+# of signing/bot/R2.
 name: Windows Spoof Setup
 
 on:
@@ -7,10 +9,14 @@ on:
     branches: [spoof-panel]
   workflow_dispatch:
 
+env:
+  SDK: 10.0.26100.0
+
 jobs:
-  windows:
-    name: Windows x64 setup.exe
+  libraries:
+    name: Windows libraries
     runs-on: windows-latest
+    timeout-minutes: 360
     defaults:
       run:
         shell: cmd
@@ -35,19 +41,13 @@ jobs:
         working-directory: ${{ env.TBUILD }}/${{ env.REPO_NAME }}
         run: git submodule update --init --depth=1
 
-      - name: Read SDK version.
+      - name: Cache key.
         shell: bash
         run: |
-          DOCPATH=$TBUILD/$REPO_NAME/docs/building-win.md
-          SDK="$(grep "SDK version" $DOCPATH | sed -r 's/.*\*\*(.*)\*\* SDK version.*/\1/')"
-          echo "SDK=$SDK" >> $GITHUB_ENV
           sha256sum "$TBUILD/$REPO_NAME/Telegram/build/prepare/prepare.py" | awk '{ print $1 }' > CACHE_KEY.txt
-          echo "$SDK" >> CACHE_KEY.txt
+          echo "10.0.26100.0" >> CACHE_KEY.txt
           echo "CACHE_KEY=$(sha256sum CACHE_KEY.txt | awk '{ print $1 }')" >> $GITHUB_ENV
 
-      # VS2026 image ships ATL only for its default v145 toolset; we build
-      # with the v143 14.44 compatibility toolset (Windows 7 support), so
-      # install the matching ATL component like upstream canary does.
       - name: Visual Studio ATL component.
         shell: pwsh
         run: |
@@ -99,9 +99,21 @@ jobs:
           key: ${{ runner.OS }}-libs-${{ env.CACHE_KEY }}
           restore-keys: ${{ runner.OS }}-libs-
 
+      - name: Disk before.
+        shell: bash
+        run: df -h /c 2>/dev/null || df -h
+
       - name: Libraries.
         run: |
           %TBUILD%\%REPO_NAME%\Telegram\build\prepare\win.bat silent
+
+      - name: Free up some disk space.
+        shell: bash
+        run: find $LibrariesPath '(' '(' ! '(' -name '*.lib' -o -name '*.a' -o -name '*.exe' -o -name '*.h' -o -name '*.hpp' -o -name '*.inc' -o -name '*.cmake' -o -name '*.pc' -o -path '*/include/*' -o -path '*/objects-*' -o -path '*/cache_keys/*' -o -path '*/patches/*' -o -path '*/nv-codec-headers/*' ')' -type f ')' -o -empty ')' -delete
+
+      - name: Disk after.
+        shell: bash
+        run: du -sh $LibrariesPath $TBUILD/ThirdParty; df -h
 
       - name: Save ThirdParty cache.
         if: steps.cache-third-party.outputs.cache-hit != 'true'
@@ -117,9 +129,61 @@ jobs:
           path: ${{ env.LibrariesPath }}
           key: ${{ steps.cache-libs.outputs.cache-primary-key }}
 
-      - name: Free up some disk space.
+  client:
+    name: Windows client + setup
+    runs-on: windows-latest
+    timeout-minutes: 360
+    needs: libraries
+    defaults:
+      run:
+        shell: cmd
+    steps:
+      - name: Prepare directories.
+        run: |
+          mkdir %userprofile%\TBuild\Libraries
+          mklink /d %GITHUB_WORKSPACE%\TBuild %userprofile%\TBuild
+          echo TBUILD=%GITHUB_WORKSPACE%\TBuild>>%GITHUB_ENV%
+          echo LibrariesPath=%GITHUB_WORKSPACE%\TBuild\Libraries\win64>>%GITHUB_ENV%
+
+      - name: Get repository name.
         shell: bash
-        run: find $LibrariesPath '(' '(' ! '(' -name '*.lib' -o -name '*.a' -o -name '*.exe' -o -name '*.h' -o -name '*.hpp' -o -name '*.inc' -o -name '*.cmake' -o -name '*.pc' -o -path '*/include/*' -o -path '*/objects-*' -o -path '*/cache_keys/*' -o -path '*/patches/*' -o -path '*/nv-codec-headers/*' ')' -type f ')' -o -empty ')' -delete
+        run: echo "REPO_NAME=${GITHUB_REPOSITORY##*/}" >> $GITHUB_ENV
+
+      - uses: actions/checkout@v4
+        with:
+          path: ${{ env.TBUILD }}\${{ env.REPO_NAME }}
+
+      - name: Submodules.
+        shell: bash
+        working-directory: ${{ env.TBUILD }}/${{ env.REPO_NAME }}
+        run: git submodule update --init --depth=1
+
+      - name: Cache key.
+        shell: bash
+        run: |
+          sha256sum "$TBUILD/$REPO_NAME/Telegram/build/prepare/prepare.py" | awk '{ print $1 }' > CACHE_KEY.txt
+          echo "10.0.26100.0" >> CACHE_KEY.txt
+          echo "CACHE_KEY=$(sha256sum CACHE_KEY.txt | awk '{ print $1 }')" >> $GITHUB_ENV
+
+      - name: Native Tools Command Prompt.
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+          sdk: ${{ env.SDK }}
+          toolset: '14.44'
+
+      - name: ThirdParty cache.
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.TBUILD }}\ThirdParty
+          key: ${{ runner.OS }}-third-party-${{ env.CACHE_KEY }}
+          enableCrossOsArchive: false
+
+      - name: Libraries cache.
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.LibrariesPath }}
+          key: ${{ runner.OS }}-libs-${{ env.CACHE_KEY }}
 
       - name: Telegram Desktop build.
         run: |
@@ -149,5 +213,3 @@ jobs:
           path: |
             ${{ env.TBUILD }}/${{ env.REPO_NAME }}/out/Release/AyuGram-Spoof-setup-x64.exe
             ${{ env.TBUILD }}/${{ env.REPO_NAME }}/out/Release/AyuGram.exe
-
-# touch rescan
