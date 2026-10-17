@@ -69,7 +69,7 @@ jobs:
           if (-not (Test-Path $header)) { throw "$atlComponent completed without $header." }
 
       - name: Native Tools Command Prompt.
-        uses: briefcases/msvc-dev-cmd@v1
+        uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
           sdk: ${{ env.SDK }}
