@@ -193,11 +193,13 @@ jobs:
         run: |
           $cs = Get-CimInstance -ClassName Win32_ComputerSystem
           if ($cs.AutomaticManagedPagefile) {
-            $cs | Set-CimInstance -Property @{AutomaticManagedPagefile = $false}
+            Set-CimInstance -InputObject $cs -Property @{AutomaticManagedPagefile = $false}
           }
           Get-CimInstance -ClassName Win32_PageFileSetting | Remove-CimInstance
           New-CimInstance -ClassName Win32_PageFileSetting -Property @{
-            Name = 'D:\pagefile.sys'; InitialSize = 65536; MaximumSize = 65536 } | Out-Null
+            Name = 'D:\pagefile.sys'
+            InitialSize = [uint32]65536
+            MaximumSize = [uint32]65536 } | Out-Null
           Start-Sleep -Seconds 5
           Get-CimInstance -ClassName Win32_PageFileUsage | Format-List Name, AllocatedBaseSize
 
