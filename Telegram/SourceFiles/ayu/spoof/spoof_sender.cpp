@@ -22,6 +22,7 @@
 #include "window/window_session_controller.h"
 
 #include <algorithm>
+#include <limits>
 #include <memory>
 #include <optional>
 #include <QtCore/QFile>
@@ -40,6 +41,7 @@ struct SenderState {
 	Api::SendProgressType type = Api::SendProgressType::RecordVoice;
 	QByteArray data;
 	Entry entry;
+	bool viewOnce = false;
 	std::optional<base::Timer> statusTimer;
 	std::optional<base::Timer> endTimer;
 };
@@ -67,9 +69,15 @@ void FinishSender(const std::shared_ptr<SenderState> &state) {
 	if (const auto controller = state->controller.get()) {
 		auto &session = controller->session();
 		session.sendProgressManager().cancel(state->history, state->type);
+		auto options = Api::SendOptions();
+		if (state->viewOnce) {
+			// WHY: tdesktop marks "view once" media with an effectively
+			// infinite ttl, exactly like the round-video record bar does.
+			options.ttlSeconds = std::numeric_limits<int>::max();
+		}
 		const auto to = FileLoadTo(
 			state->history->peer->id,
-			Api::SendOptions(),
+			options,
 			FullReplyTo(),
 			MsgId());
 		session.api().fileLoader()->addTask(
@@ -89,7 +97,8 @@ void FinishSender(const std::shared_ptr<SenderState> &state) {
 
 void SendEntryToActiveChat(
 		Window::SessionController *controller,
-		const Entry &entry) {
+		const Entry &entry,
+		bool viewOnce) {
 	if (!controller) {
 		return;
 	}
@@ -113,6 +122,7 @@ void SendEntryToActiveChat(
 		: Api::SendProgressType::RecordVoice;
 	state->data = file.readAll();
 	state->entry = entry;
+	state->viewOnce = viewOnce;
 
 	if (entry.durationMs <= 0) {
 		FinishSender(state);

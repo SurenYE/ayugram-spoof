@@ -9158,6 +9158,7 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
 "ayu_SpoofPanelNoChat" = "Open a chat to send from.";
 "ayu_SpoofPanelHint" = "Click to preview, right-click to remove.";
 "ayu_SpoofPanelSend" = "Send";
+"ayu_SpoofPanelViewOnce" = "Disappearing (view once)";
 "ayu_SpoofPanelClearAll" = "Clear all";
 "ayu_SpoofPanelTagRound" = "Round";
 "ayu_SpoofPanelTagVoice" = "Voice";

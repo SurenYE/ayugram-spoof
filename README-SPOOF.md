@@ -69,20 +69,6 @@ QT_QPA_PLATFORM=xcb /home/sska/tgbuild/AyuGramDesktop/out/Debug/AyuGram --workdi
 - добавить кружок/голосовое в панель — правый клик по входящему голосовому/кружку →
   «Добавить в панель подделок» (файл докачается сам, если ещё не скачан).
 
-## Сборка (Windows)
-
-По той же кодовой базе, официально поддерживается Ayugram:
-
-1. Установить [Visual Studio 2022](https://visualstudio.microsoft.com/) (Desktop development with C++),
-   CMake, Ninja, Git, Rust (для tlottie) и `strawberryperl`/`jom` согласно
-   [docs/building-windows.md](https://github.com/AyuGram/AyuGramDesktop/blob/dev/docs/building-windows.md).
-2. `git clone --recursive` → `Telegram\build\prepare\windows.ps1` (или готовый образ
-   `ghcr.io/telegramdesktop/tdesktop/win_env` + `docker`).
-3. Конфигурация и сборка в режиме **Debug** (релиз не рекомендуется правилами репозитория):
-   `cmake -GNinja -Bout/build/x64-Debug -DCMAKE_BUILD_TYPE=Debug -DTDESKTOP_API_ID=2040 -DTDESKTOP_API_HASH=b18441a1ff607e10a989891a5462e627`
-   затем `cmake --build out/build/x64-Debug`.
-4. Бинарник: `out\build\x64-Debug\bin\Debug\AyuGram.exe`.
-
 ## Что изменено в коде (список файлов)
 
 - `Telegram/SourceFiles/ayu/spoof/spoof_storage.{h,cpp}` — хранилище списка (JSON-индекс + файлы).

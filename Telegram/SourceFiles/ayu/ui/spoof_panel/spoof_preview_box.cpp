@@ -14,6 +14,7 @@
 #include "media/streaming/media_streaming_instance.h"
 #include "media/streaming/media_streaming_loader_local.h"
 #include "media/streaming/media_streaming_player.h"
+#include "styles/style_ayu_styles.h"
 #include "styles/style_basic.h"
 #include "styles/style_boxes.h"
 #include "styles/style_chat.h"
@@ -23,6 +24,8 @@
 #include "ui/chat/chat_style.h"
 #include "ui/style/style_core_scale.h"
 #include "ui/painter.h"
+#include "ui/widgets/checkbox.h"
+#include "ui/wrap/vertical_layout.h"
 #include "window/window_session_controller.h"
 
 #include <algorithm>
@@ -97,7 +100,8 @@ void SpoofPreviewBox::prepare() {
 		if (_instance) {
 			_instance->stop();
 		}
-		Ayu::Spoof::SendEntryToActiveChat(_controller.get(), _entry);
+		const auto viewOnce = _viewOnce && _viewOnce->checked();
+		Ayu::Spoof::SendEntryToActiveChat(_controller.get(), _entry, viewOnce);
 		if (_onSent) {
 			_onSent();
 		}
@@ -106,11 +110,18 @@ void SpoofPreviewBox::prepare() {
 
 	const auto width = st::boxWidth;
 	const auto height = _entry.round ? width : kVoiceHeight;
-	auto content = object_ptr<Ui::RpWidget>(this);
-	_view = content.get();
+	auto content = object_ptr<Ui::VerticalLayout>(this);
+	const auto raw = content.get();
+	_view = raw->add(object_ptr<Ui::RpWidget>(raw));
 	_view->resize(width, height);
+	_viewOnce = raw->add(object_ptr<Ui::Checkbox>(
+		raw,
+		tr::ayu_SpoofPanelViewOnce(tr::now),
+		false,
+		st::defaultBoxCheckbox),
+		style::margins(st::spoofPanelGridPadding, 0, st::spoofPanelGridPadding, st::spoofPanelGridPadding));
 	setInnerWidget(std::move(content));
-	setDimensionsToContent(st::boxWidth, _view);
+	setDimensionsToContent(st::boxWidth, raw);
 
 	_view->paintRequest(
 	) | rpl::on_next([=] {

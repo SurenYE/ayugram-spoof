@@ -16,6 +16,10 @@ namespace Media::Streaming {
 class Instance;
 } // namespace Media::Streaming
 
+namespace Ui {
+class Checkbox;
+} // namespace Ui
+
 namespace Window {
 class SessionController;
 } // namespace Window
@@ -46,6 +50,7 @@ private:
 
 	std::unique_ptr<Media::Streaming::Instance> _instance;
 	class Ui::RpWidget *_view = nullptr;
+	Ui::Checkbox *_viewOnce = nullptr;
 
 	QImage _frame;
 	crl::time _position = 0;

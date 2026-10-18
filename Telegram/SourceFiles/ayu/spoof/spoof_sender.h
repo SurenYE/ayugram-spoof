@@ -16,8 +16,10 @@ namespace Ayu::Spoof {
 
 // Shows "recording voice/video message" for the entry duration,
 // then uploads the stored file as a fresh message to the active chat.
+// When viewOnce is set, the media is sent as disappearing (one view).
 void SendEntryToActiveChat(
 	Window::SessionController *controller,
-	const Entry &entry);
+	const Entry &entry,
+	bool viewOnce = false);
 
 } // namespace Ayu::Spoof
